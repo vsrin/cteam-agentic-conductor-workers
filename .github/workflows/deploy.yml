@@ -1,3 +1,5 @@
+# .github/workflows/deploy.yml
+
 name: Build and Deploy Python App to EC2
 
 on:
@@ -47,21 +49,27 @@ jobs:
           IMAGE_URI: ${{ steps.build-image.outputs.image }}
         run: |
           # Use a heredoc to create a clean JSON payload for the commands.
-          # This is the most reliable way to pass multi-line scripts to SSM.
+          # We've added echo statements for better debugging.
           COMMANDS_JSON=$(cat <<EOF
           {
             "commands": [
               "#!/bin/bash",
-              "set -e",
+              "set -eo pipefail",
+              "echo '--- Logging into ECR ---'",
               "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "docker network create app-network || true",
+              "echo '--- ECR login successful ---'",
+              "echo '--- Cleaning up old containers ---'",
               "docker stop flask_server || true",
               "docker rm flask_server || true",
               "docker stop conductor_server || true",
               "docker rm conductor_server || true",
+              "echo '--- Pulling new image: ${{ env.IMAGE_URI }} ---'",
               "docker pull ${{ env.IMAGE_URI }}",
+              "echo '--- Image pull successful ---'",
+              "echo '--- Starting new containers ---'",
               "docker run -d --name conductor_server --network app-network -p 8080:8080 -p 5000:5000 --restart always orkesio/orkes-conductor-community",
-              "docker run -d --name flask_server --network app-network -p 80:80 --restart always ${{ env.IMAGE_URI }}"
+              "docker run -d --name flask_server --network app-network -p 80:80 --restart always ${{ env.IMAGE_URI }}",
+              "echo '--- Deployment commands finished ---'"
             ]
           }
           EOF
