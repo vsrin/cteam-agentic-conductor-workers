@@ -46,52 +46,33 @@ jobs:
         env:
           IMAGE_URI: ${{ steps.build-image.outputs.image }}
         run: |
-          COMMANDS_SCRIPT=$(cat <<EOF
-          #!/bin/bash
-          set -e
-          
-          # Login to AWS ECR
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
-          
-          # Create a shared Docker network if it doesn't exist
-          docker network create app-network || true
-          
-          # Stop and remove the old flask app container, if it exists
-          docker stop flask_server || true
-          docker rm flask_server || true
-          
-          # Stop and remove the conductor container to ensure a clean start
-          docker stop conductor_server || true
-          docker rm conductor_server || true
-
-          # Pull the latest version of your application image
-          docker pull ${{ env.IMAGE_URI }}
-          
-          # Run the conductor container on the shared network
-          docker run -d \
-            --name conductor_server \
-            --network app-network \
-            -p 8080:8080 \
-            -p 5000:5000 \
-            --restart always \
-            orkesio/orkes-conductor-community
-            
-          # Run the new flask app container, connected to the same network
-          docker run -d \
-            --name conductor-worker \
-            --network app-network \
-            -p 80:80 \
-            --restart always \
-            ${{ env.IMAGE_URI }}
+          # Use a heredoc to create a clean JSON payload for the commands.
+          # This is the most reliable way to pass multi-line scripts to SSM.
+          COMMANDS_JSON=$(cat <<EOF
+          {
+            "commands": [
+              "#!/bin/bash",
+              "set -e",
+              "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
+              "docker network create app-network || true",
+              "docker stop flask_server || true",
+              "docker rm flask_server || true",
+              "docker stop conductor_server || true",
+              "docker rm conductor_server || true",
+              "docker pull ${{ env.IMAGE_URI }}",
+              "docker run -d --name conductor_server --network app-network -p 8080:8080 -p 5000:5000 --restart always orkesio/orkes-conductor-community",
+              "docker run -d --name flask_server --network app-network -p 80:80 --restart always ${{ env.IMAGE_URI }}"
+            ]
+          }
           EOF
           )
-          
-          # Send the command to the EC2 instance using SSM
+
+          # Send the command with the cleanly formatted JSON payload
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --comment "Deploying image ${{ env.IMAGE_URI }}" \
             --targets "Key=InstanceIds,Values=${EC2_INSTANCE_ID}" \
-            --parameters "commands=[${COMMANDS_SCRIPT@Q}]" \
+            --parameters "$COMMANDS_JSON" \
             --region ${{ env.AWS_REGION }} \
             --query "Command.CommandId" \
             --output text)
