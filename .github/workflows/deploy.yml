@@ -70,7 +70,7 @@ jobs:
           # Send the command with the cleanly formatted JSON payload
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploying image ${{ env.IMAGE_URI }}" \
+            --comment "Deploying commit: ${{ github.short_sha }}" \
             --targets "Key=InstanceIds,Values=${EC2_INSTANCE_ID}" \
             --parameters "$COMMANDS_JSON" \
             --region ${{ env.AWS_REGION }} \
