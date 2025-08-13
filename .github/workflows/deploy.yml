@@ -65,7 +65,7 @@ jobs:
               "echo '--- Image pull successful ---'",
               "echo '--- Starting new containers ---'",
               "docker run -d --name conductor_server --network app-network -p 8080:8080 -p 5000:5000 --restart always orkesio/orkes-conductor-community",
-              "docker run -d --name flask_server --network app-network -p 80:80 --restart always ${{ env.IMAGE_URI }}",
+              "docker run -d --name conductor_worker --network app-network -p 80:80 --restart always ${{ env.IMAGE_URI }}",
               "echo '--- Deployment commands finished ---'"
             ]
           }
