@@ -1,54 +1,115 @@
-name: Deploy to EKS
+name: Build and Deploy Python App to EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY: cteam-agentic-conductor-workers
+      EC2_INSTANCE_ID: i-04ef88b4a2bf4f801
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Set up kubectl
-        run: |
-          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.32.0/2024-12-20/bin/linux/amd64/kubectl
-          chmod +x ./kubectl
-          sudo mv ./kubectl /usr/local/bin
-
-      - name: Configure kubectl to access EKS
-        run: |
-          aws eks --region us-east-1 update-kubeconfig --name Project-repo-stack
-
-      - name: Verify Kubernetes Connection
-        run: kubectl get nodes
+          role-to-assume: arn:aws:iam::867344440197:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-Deploy
 
       - name: Login to Amazon ECR
-        run: |
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Docker Image
+      - name: Build and Push Docker Image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/conductor-workers:latest .
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/conductor-workers:latest
-      - name: Replace AWS Account ID in YAML
-        run: |
-          sed -i "s|AWS_ACCOUNT_ID_PLACEHOLDER|${{ secrets.AWS_ACCOUNT_ID }}|g" k8s/deployment.yaml
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Deploy to Kubernetes
+      - name: Deploy to EC2 via SSM Run Command
+        env:
+          IMAGE_URI: ${{ steps.build-image.outputs.image }}
         run: |
-          kubectl apply -f k8s/deployment.yaml -n conductor
-          kubectl apply -f k8s/service.yaml -n conductor
+          COMMANDS_SCRIPT=$(cat <<EOF
+          #!/bin/bash
+          set -e
+          
+          # Login to AWS ECR
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+          
+          # Create a shared Docker network if it doesn't exist
+          docker network create app-network || true
+          
+          # Stop and remove the old flask app container, if it exists
+          docker stop flask_server || true
+          docker rm flask_server || true
+          
+          # Stop and remove the conductor container to ensure a clean start
+          docker stop conductor_server || true
+          docker rm conductor_server || true
 
-      - name: Deployment Complete
-        run: echo "Application deployed successfully"
+          # Pull the latest version of your application image
+          docker pull ${{ env.IMAGE_URI }}
+          
+          # Run the conductor container on the shared network
+          docker run -d \
+            --name conductor_server \
+            --network app-network \
+            -p 8080:8080 \
+            -p 5000:5000 \
+            --restart always \
+            orkesio/orkes-conductor-community
+            
+          # Run the new flask app container, connected to the same network
+          docker run -d \
+            --name flask_server \
+            --network app-network \
+            -p 80:80 \
+            --restart always \
+            ${{ env.IMAGE_URI }}
+          EOF
+          )
+          
+          # Send the command to the EC2 instance using SSM
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploying image ${{ env.IMAGE_URI }}" \
+            --targets "Key=InstanceIds,Values=${EC2_INSTANCE_ID}" \
+            --parameters "commands=[${COMMANDS_SCRIPT@Q}]" \
+            --region ${{ env.AWS_REGION }} \
+            --query "Command.CommandId" \
+            --output text)
+
+          # Wait for the command to complete
+          echo "Waiting for deployment to complete..."
+          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "${EC2_INSTANCE_ID}" --region ${{ env.AWS_REGION }}
+          
+          # Check the final status and output
+          STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --details --query "CommandInvocations[0].Status" --output text)
+          if [ "\$STATUS" = "Success" ]; then
+            echo "✅ Deployment completed successfully!"
+          else
+            echo "❌ Deployment failed with status: \$STATUS"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "${EC2_INSTANCE_ID}" \
+              --query "StandardErrorContent" \
+              --output text
+            exit 1
+          fi
