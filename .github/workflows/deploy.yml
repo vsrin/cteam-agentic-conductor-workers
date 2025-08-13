@@ -14,7 +14,7 @@ jobs:
     
     env:
       AWS_REGION: us-east-1
-      ECR_REPOSITORY: cteam-agentic-conductor-workers
+      ECR_REPOSITORY: conductor/backend
       EC2_INSTANCE_ID: i-04ef88b4a2bf4f801
 
     steps:
@@ -78,7 +78,7 @@ jobs:
             
           # Run the new flask app container, connected to the same network
           docker run -d \
-            --name flask_server \
+            --name conductor-worker \
             --network app-network \
             -p 80:80 \
             --restart always \
