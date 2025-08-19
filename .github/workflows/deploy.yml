@@ -46,7 +46,6 @@ jobs:
         env:
           IMAGE_URI: ${{ steps.build-image.outputs.image }}
         run: |
-          # Use a heredoc to create a clean JSON payload for the commands.
           COMMANDS_JSON=$(cat <<EOF
           {
             "commands": [
@@ -54,35 +53,30 @@ jobs:
               "set -eo pipefail",
               "echo '--- Logging into ECR ---'",
               "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "echo '--- ECR login successful ---'",
-              "echo '--- Cleaning up old containers ---'",
-              "docker stop flask_server || true",
-              "docker rm flask_server || true",
-              "docker stop conductor_server || true",
-              "docker rm conductor_server || true",
-              "echo '--- Pulling new image: ${{ env.IMAGE_URI }} ---'",
+              "echo '--- Cleaning up old containers and network ---'",
+              "docker stop flask_server conductor_server || true",
+              "docker rm flask_server conductor_server || true",
+              "echo '--- Creating Docker network ---'",
+              "docker network create app-network || true",
+              "echo '--- Pulling new images ---'",
+              "docker pull orkesio/orkes-conductor-community",
               "docker pull ${{ env.IMAGE_URI }}",
-              "echo '--- Image pull successful ---'",
               "echo '--- Starting new containers ---'",
-              "docker run -d --name conductor_server --network app-network -p 8080:8080 -p 5000:5000 --restart always orkesio/orkes-conductor-community",
-              "docker run -d --name conductor_worker --network app-network -p 80:80 --restart always ${{ env.IMAGE_URI }}",
-              "echo '--- Deployment commands finished ---'"
+              "docker run -d --name conductor_server --network app-network -p 8080:8080 -p 5000:5000 -e DB=postgres --restart always orkesio/orkes-conductor-community",
+              "docker run -d --name flask_server --network app-network -p 3000:3000 --restart always ${{ env.IMAGE_URI }}",
+              "echo '--- Deployment finished ---'"
             ]
           }
           EOF
           )
-
-          # Send the command with the cleanly formatted JSON payload
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploying commit: ${{ github.short_sha }}" \
+            --comment "Deploying commit: ${{ github.sha }}" \
             --targets "Key=InstanceIds,Values=${EC2_INSTANCE_ID}" \
             --parameters "$COMMANDS_JSON" \
             --region $AWS_REGION \
             --query "Command.CommandId" \
             --output text)
-
-          # Wait for deployment to complete by polling the status
           echo "Waiting for deployment to complete..."
           while true; do
             STATUS=$(aws ssm list-command-invocations \
@@ -91,13 +85,11 @@ jobs:
               --query 'CommandInvocations[0].Status' \
               --output text)
             echo "Current status: $STATUS"
-
             if [ "$STATUS" = "Success" ]; then
               echo "✅ Deployment completed successfully!"
               break
             elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
               echo "❌ Deployment failed with status: $STATUS"
-              # Get the error output from the failed command on the EC2 instance
               aws ssm get-command-invocation \
                 --command-id "$COMMAND_ID" \
                 --instance-id "${EC2_INSTANCE_ID}" \
