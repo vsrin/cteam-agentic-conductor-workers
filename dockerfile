@@ -12,8 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose Flask port
-EXPOSE 80
+EXPOSE 3000
 
 # Start both Flask app and workers.py
-CMD ["sh", "-c", "python -m app.utils.workers & gunicorn -w 4 -b 0.0.0.0:80 app.app:app"]
+CMD ["sh", "-c", "python -m app.utils.workers & gunicorn -w 4 -b 0.0.0.0:3000 app.app:app"]
 
