@@ -56,15 +56,25 @@ jobs:
               "echo '--- Cleaning up old containers and network ---'",
               "docker stop flask_server conductor_server || true",
               "docker rm flask_server conductor_server || true",
+              "docker network rm app-network || true",
+              "sleep 2",
               "echo '--- Creating Docker network ---'",
-              "docker network create app-network || true",
+              "docker network create app-network",
               "echo '--- Pulling new images ---'",
               "docker pull orkesio/orkes-conductor-community",
               "docker pull ${{ env.IMAGE_URI }}",
-              "echo '--- Starting new containers ---'",
+              "echo '--- Starting Conductor server ---'",
               "docker run -d --name conductor_server --network app-network -p 8080:8080 -p 5000:5000 -e DB=postgres --restart always orkesio/orkes-conductor-community",
-              "docker run -d --name flask_server --network app-network -p 3000:3000 --restart always ${{ env.IMAGE_URI }}",
-              "echo '--- Deployment finished ---'"
+              "echo '--- Waiting for Conductor to be ready ---'",
+              "timeout 300 bash -c 'until docker exec conductor_server curl -f http://localhost:8080/health > /dev/null 2>&1; do echo \"Waiting for Conductor...\"; sleep 5; done' || echo \"Conductor health check timeout - continuing anyway\"",
+              "echo '--- Starting Flask server with environment variables ---'",
+              "docker run -d --name flask_server --network app-network -p 3000:3000 -e CONDUCTOR_URL=https://conductor-server.enowclear360.com/api -e BP_CLIENT_ID=E2K1g5kpTTMzbSB32PGWKFXfdtxWR1j5 -e BP_CLIENT_SECRET=zbPQpXD1TpGifYgV5r9vimcR -e BP_API_KEY=LCLSzoQf8R3zPtj2ZvQR19JkLYtDHREV2jpgMH4g --restart always ${{ env.IMAGE_URI }}",
+              "echo '--- Verifying deployment ---'",
+              "sleep 10",
+              "docker ps --format \"table {{.Names}}\\t{{.Status}}\\t{{.Ports}}\"",
+              "echo '--- Checking Flask server environment ---'",
+              "docker exec flask_server env | grep -E '(CONDUCTOR_URL|BP_)'",
+              "echo '--- Deployment finished successfully ---'"
             ]
           }
           EOF
