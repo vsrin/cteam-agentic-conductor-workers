@@ -29,24 +29,18 @@ def home():
 
 @app.route('/start-workflow', methods=['POST'])
 def start_workflow():
-    if 'file' not in request.files:
-        return 'No file part', 400
     print("Starting workflow...")
-    case_id = request.form['case_id']
-    file = request.files['file']  # this should now work if sent as form-data
-    file_content = file.read()
-    filename = file.filename
-
     
-
+    # FOR CALCULATOR TEST - no file needed
     workflow_input = {
         "number1": 10,
         "number2": 5, 
         "operation": "add"
     }
+    
     payload = {
         "name": WORKFLOW_NAME,
-        "version": 1,  # CHANGE VERSION TO 1
+        "version": 1,
         "input": workflow_input
     }
     
@@ -58,11 +52,11 @@ def start_workflow():
                 "details": start_response.json()
             }), 500
         return jsonify({
-            "message": "Workflow has started. Please wait for the response.",
+            "message": "Calculator workflow started!",
             "Workflow ID": start_response.text
         }), 200
     except Exception as e:
-        return jsonify({"error": f"Error triggering/tracking workflow: {str(e)}"}), 500
+        return jsonify({"error": f"Error triggering workflow: {str(e)}"}), 500
 
 @app.route('/register-workflow', methods=['POST'])
 def register_workflow():
