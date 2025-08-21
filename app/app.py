@@ -9,7 +9,7 @@ app = Flask(__name__)
 CORS(app)
 
 CONDUCTOR_URL = os.getenv('CONDUCTOR_URL')
-WORKFLOW_NAME = 'get_submission_analysis'
+WORKFLOW_NAME = 'Submission_with_authentication'
 
 @app.route('/')
 def home():
