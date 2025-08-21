@@ -20,12 +20,12 @@ from app.utils.parsers import (
     parse_us_common,
 )
 from app.utils.service_now import send_to_service_now, send_to_service_now_rerun_worker,send_to_service_now_ven,send_to_service_now_rerun_worker_ven
- 
+
 load_dotenv(override=True)
- 
+
 # Conductor API URL
 API_URL = os.getenv('CONDUCTOR_URL')
- 
+
 DATA_PACKAGE_IDS = [
     "elevate-us-common-c0001",
     "default-us-admitted-advanced-property-l0001",
@@ -41,36 +41,6 @@ config = Configuration(
     server_api_url=API_URL,
     auth_token_ttl_min=45,
 )
-
-def simple_calculator(task):
-    task_id = task.task_id
-    input_data = task.input_data
-    
-    # Get numbers from input
-    num1 = input_data.get('number1', 0)
-    num2 = input_data.get('number2', 0)
-    operation = input_data.get('operation', 'add')
-    
-    # Do calculation
-    if operation == 'add':
-        result = num1 + num2
-    elif operation == 'multiply':
-        result = num1 * num2
-    elif operation == 'subtract':
-        result = num1 - num2
-    else:
-        result = num1 + num2  # default
-    
-    log_message(task_id, f"Calculated: {num1} {operation} {num2} = {result}")
-    
-    return {
-        "status": "COMPLETED",
-        "outputData": {
-            "result": result,
-            "calculation": f"{num1} {operation} {num2} = {result}"
-        }
-    }
-
 # Worker for retrieving auth token
 
 def fetch_submission_data(task):
@@ -104,10 +74,10 @@ def fetch_submission_data(task):
                 "x-api-key": os.getenv("BP_API_KEY"),
             }
             response = requests.get(url, headers=headers)
- 
+
             if response.status_code == 200:
                 raw_data = response.json()
- 
+
                 # Call the respective parser
                 if dp_id == "elevate-us-common-c0001":
                     structured_response["Common"] = parse_us_common(raw_data)
@@ -157,8 +127,8 @@ def fetch_submission_data(task):
     except Exception as e:
         log_message(task_id, f"Error saving record to database: {e}")
 
-        
- 
+
+
     return structured_response
 
 
@@ -396,16 +366,9 @@ worker_send_to_service_now_rerun = Worker(
     execute_function=send_to_service_now_rerun_worker
 )
 
-# Add this worker
-worker_simple_calculator = Worker(
-    task_definition_name="simple_calculator",
-    execute_function=simple_calculator
-)
- 
 handler = TaskHandler(
     configuration=config,
     workers=[
-        worker_simple_calculator,
         worker_validate_auth_token,
         worker_package_to_eml,
         worker_auth,
