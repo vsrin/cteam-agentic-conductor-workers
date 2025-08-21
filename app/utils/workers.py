@@ -42,6 +42,35 @@ config = Configuration(
     auth_token_ttl_min=45,
 )
 
+def simple_calculator(task):
+    task_id = task.task_id
+    input_data = task.input_data
+    
+    # Get numbers from input
+    num1 = input_data.get('number1', 0)
+    num2 = input_data.get('number2', 0)
+    operation = input_data.get('operation', 'add')
+    
+    # Do calculation
+    if operation == 'add':
+        result = num1 + num2
+    elif operation == 'multiply':
+        result = num1 * num2
+    elif operation == 'subtract':
+        result = num1 - num2
+    else:
+        result = num1 + num2  # default
+    
+    log_message(task_id, f"Calculated: {num1} {operation} {num2} = {result}")
+    
+    return {
+        "status": "COMPLETED",
+        "outputData": {
+            "result": result,
+            "calculation": f"{num1} {operation} {num2} = {result}"
+        }
+    }
+
 # Worker for retrieving auth token
 
 def fetch_submission_data(task):
@@ -366,10 +395,17 @@ worker_send_to_service_now_rerun = Worker(
     task_definition_name="send_to_service_now_rerun",
     execute_function=send_to_service_now_rerun_worker
 )
+
+# Add this worker
+worker_simple_calculator = Worker(
+    task_definition_name="simple_calculator",
+    execute_function=simple_calculator
+)
  
 handler = TaskHandler(
     configuration=config,
     workers=[
+        worker_simple_calculator,
         worker_validate_auth_token,
         worker_package_to_eml,
         worker_auth,
