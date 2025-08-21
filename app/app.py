@@ -9,7 +9,7 @@ app = Flask(__name__)
 CORS(app)
 
 CONDUCTOR_URL = os.getenv('CONDUCTOR_URL')
-WORKFLOW_NAME = 'simple_calculator_test'
+WORKFLOW_NAME = 'get_submission_analysis'
 
 @app.route('/')
 def home():
@@ -29,21 +29,27 @@ def home():
 
 @app.route('/start-workflow', methods=['POST'])
 def start_workflow():
+    if 'file' not in request.files:
+        return 'No file part', 400
     print("Starting workflow...")
-    
-    # FOR CALCULATOR TEST - no file needed
+    case_id = request.form['case_id']
+    file = request.files['file']  # this should now work if sent as form-data
+    file_content = file.read()
+    filename = file.filename
+
+
+
     workflow_input = {
-        "number1": 10,
-        "number2": 5, 
-        "operation": "add"
+        "case_id": case_id,
+        "filename": filename,
+        "file": file_content.decode('utf-8')
     }
-    
     payload = {
         "name": WORKFLOW_NAME,
-        "version": 1,
+        "version": 9,
         "input": workflow_input
     }
-    
+
     try:
         start_response = requests.post(f"{CONDUCTOR_URL}/workflow", json=payload)
         if start_response.status_code != 200:
@@ -52,11 +58,11 @@ def start_workflow():
                 "details": start_response.json()
             }), 500
         return jsonify({
-            "message": "Calculator workflow started!",
+            "message": "Workflow has started. Please wait for the response.",
             "Workflow ID": start_response.text
         }), 200
     except Exception as e:
-        return jsonify({"error": f"Error triggering workflow: {str(e)}"}), 500
+        return jsonify({"error": f"Error triggering/tracking workflow: {str(e)}"}), 500
 
 @app.route('/register-workflow', methods=['POST'])
 def register_workflow():
