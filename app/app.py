@@ -9,7 +9,7 @@ app = Flask(__name__)
 CORS(app)
 
 CONDUCTOR_URL = os.getenv('CONDUCTOR_URL')
-WORKFLOW_NAME = 'Submission_with_authentication'
+WORKFLOW_NAME = 'simple_calculator_test'
 
 @app.route('/')
 def home():
@@ -40,13 +40,13 @@ def start_workflow():
     
 
     workflow_input = {
-        "case_id": case_id,
-        "filename": filename,
-        "file": file_content.decode('utf-8')
+        "number1": 10,
+        "number2": 5, 
+        "operation": "add"
     }
     payload = {
         "name": WORKFLOW_NAME,
-        "version": 10,
+        "version": 1,  # CHANGE VERSION TO 1
         "input": workflow_input
     }
     
