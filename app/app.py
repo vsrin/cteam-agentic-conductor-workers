@@ -46,7 +46,7 @@ def start_workflow():
     }
     payload = {
         "name": WORKFLOW_NAME,
-        "version": 9,
+        "version": 10,
         "input": workflow_input
     }
     
