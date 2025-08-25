@@ -522,12 +522,12 @@ def call_ven_agent_service(task):
 
     # Mapping of AgentIDs to their specific endpoints
     agent_endpoints = {
-        "62bdca88-828e-48a2-ac10-357264372043": "http://3.237.94.99:32505/query",  # DataAnalysis (InsuranceVerify)
-        "10645287-854e-4270-bb7d-fcbb31d3aefa": "http://3.237.94.99:32501/query",  # LossInsights
-        "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "http://3.237.94.99:32500/query",  # PropEval (Analytics 2)
-        "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "http://3.237.94.99:32502/query",  # ExposureInsights
-        "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "http://3.237.94.99:32504/query",  # Appetite and Eligibility
-        "383daaad-4b46-491b-b987-9dd17d430ca3": "http://3.237.94.99:32503/query",  # Business Operations (Analytics 1)
+        "62bdca88-828e-48a2-ac10-357264372043": "https://insuranceverify.enowclear360.com/query",  # DataAnalysis (InsuranceVerify)
+        "10645287-854e-4270-bb7d-fcbb31d3aefa": "https://lossinsights.enowclear360.com/query",  # LossInsights
+        "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "https://propeval.enowclear360.com/query",  # PropEval (Analytics 2)
+        "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "https://exposureinsights.enowclear360.com/query",  # ExposureInsights
+        "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "https://eligibility.enowclear360.com/query",  # Appetite and Eligibility
+        "383daaad-4b46-491b-b987-9dd17d430ca3": "https://businessprofile.enowclear360.com/query",  # Business Operations (Analytics 1)
     }
 
     # Default endpoint for agents not specified in the mapping
@@ -658,12 +658,12 @@ def call_ven_agent_service_rerun(task):
 
     # Mapping of AgentIDs to their specific endpoints
     agent_endpoints = {
-        "62bdca88-828e-48a2-ac10-357264372043": "http://3.237.94.99:32505/query",  # DataAnalysis (InsuranceVerify)
-        "10645287-854e-4270-bb7d-fcbb31d3aefa": "http://3.237.94.99:32501/query",  # LossInsights
-        "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "http://3.237.94.99:32500/query",  # PropEval (Analytics 2)
-        "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "http://3.237.94.99:32502/query",  # ExposureInsights
-        "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "http://3.237.94.99:32504/query",  # Appetite and Eligibility
-        "383daaad-4b46-491b-b987-9dd17d430ca3": "http://3.237.94.99:32503/query",  # Business Operations (Analytics 1)
+        "62bdca88-828e-48a2-ac10-357264372043": "https://insuranceverify.enowclear360.com/query",  # DataAnalysis (InsuranceVerify)
+        "10645287-854e-4270-bb7d-fcbb31d3aefa": "https://lossinsights.enowclear360.com/query",  # LossInsights
+        "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "https://propeval.enowclear360.com/query",  # PropEval (Analytics 2)
+        "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "https://exposureinsights.enowclear360.com/query",  # ExposureInsights
+        "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "https://eligibility.enowclear360.com/query",  # Appetite and Eligibility
+        "383daaad-4b46-491b-b987-9dd17d430ca3": "https://businessprofile.enowclear360.com/query",  # Business Operations (Analytics 1)
     }
     # Default endpoint for agents not specified in the mapping
     default_endpoint = "http://54.80.147.224:9000/query"
