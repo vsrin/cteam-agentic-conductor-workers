@@ -55,24 +55,25 @@ def deep_update(original: dict, updates: dict) -> dict:
       - otherwise replace original[k] outright.
     Returns the mutated `original`.
     """
+    
+    # Create a case-insensitive lookup for updates
+    updates_lower = {k.lower(): (k, v) for k, v in updates.items()}
+    
     for k, v in list(original.items()):
-        # If this key needs updating, apply update logic
-        if k in updates:
-            new_val = updates[k]
+        # Check if this key needs updating (case-insensitive)
+        if k.lower() in updates_lower:
+            original_key, new_val = updates_lower[k.lower()]
             if isinstance(original[k], dict) and 'value' in original[k]:
                 original[k]['value'] = new_val
                 # Update score if it exists, otherwise set a default score
-                #log_message("deep_update", f"Updating score for key: {k}")
-                #log_message(f"{original[k]}")
                 if 'score' in original[k]:
-                    #log_message(f"Updating score for key: {k}")
-                    original[k]['score'] = "100"  # Default score, can be customized if needed
+                    original[k]['score'] = "100"
             else:
                 original[k] = new_val
 
         # If the value is itself a dict, recurse into it
         if isinstance(original[k], dict):
-            deep_update(original[k], updates)
+            deep_update(original[k], updates)  # Pass original updates, function will recreate the lookup
 
     return original
 
