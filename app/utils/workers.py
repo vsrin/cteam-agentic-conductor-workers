@@ -220,56 +220,63 @@ def push_to_mongo_updated(task):
         timestamp = datetime.now()
 
         # Fetch latest BP_DATA
-        existing_doc = list(db["BP_DATA"].find({"case_id": case_id}).sort("created_at", -1).limit(1))
-        if not existing_doc:
-            log_message(task_id, f"No BP_DATA found for case_id: {case_id}")
+        try:
+            existing_doc = list(db["BP_DATA"].find({"case_id": case_id}).sort("created_at", -1).limit(1))
+            if not existing_doc:
+                log_message(task_id, f"No BP_DATA found for case_id: {case_id}")
+                return
+            tx_id = existing_doc[0]["tx_id"]
+            artifi_id = existing_doc[0]["artifi_id"]
+        except Exception as e:
+            log_message(task_id, f"Error fetching BP_DATA: {str(e)}")
             return
-        tx_id = existing_doc[0]["tx_id"]
-        artifi_id = existing_doc[0]["artifi_id"]
 
         # Get latest history_sequence_id
-        last_response = list(db["AGENT_RESPONSES"].find({"case_id": case_id}).sort("history_sequence_id", -1).limit(1))
-        history_sequence_id = last_response[0]["history_sequence_id"] + 1 if last_response else 1
+        try:
+            last_response = list(db["AGENT_RESPONSES"].find({"case_id": case_id}).sort("history_sequence_id", -1).limit(1))
+            history_sequence_id = last_response[0]["history_sequence_id"] + 1 if last_response else 1
+        except Exception as e:
+            log_message(task_id, f"Error fetching AGENT_RESPONSES: {str(e)}")
+            history_sequence_id = 1
 
-        # UPDATE BP_DATA (not insert)
-        bp_data_doc = {
-            "artifi_id": artifi_id,
-            "tx_id": tx_id,
-            "case_id": case_id,
-            "submission_data": submission_data,
-            "history_sequence_id": history_sequence_id,
-            "transaction_type": "Updated",
-            "created_at": timestamp
-        }
-        db["BP_DATA"].update_one(
-            {"case_id": case_id},
-            {"$set": bp_data_doc},
-            upsert=False  # Don't create if doesn't exist
-        )
+        # Insert into BP_DATA
+        try:
+            bp_data_doc = {
+                "artifi_id": artifi_id,
+                "tx_id": tx_id,
+                "case_id": case_id,
+                "submission_data": submission_data,
+                "history_sequence_id": history_sequence_id,
+                "transaction_type": "Updated",
+                "created_at": timestamp
+            }
+            db["BP_DATA"].insert_one(bp_data_doc)
+        except Exception as e:
+            log_message(task_id, f"Error inserting into BP_DATA: {str(e)}")
 
         # Save report data
-        save_report_data(submission_data, artifi_id, tx_id)
+        try:
+            save_report_data(submission_data, artifi_id, tx_id)
+        except Exception as e:
+            log_message(task_id, f"Error saving report data: {str(e)}")
 
-        # UPDATE AGENT_RESPONSES (not insert)
-        agent_response_doc = {
-            "artifi_id": artifi_id,
-            "tx_id": tx_id,
-            "case_id": case_id,
-            "agent_response": agent_response,
-            "history_sequence_id": history_sequence_id,
-            "transaction_type": "Updated",
-            "created_at": timestamp
-        }
-        db["AGENT_RESPONSES"].update_one(
-            {"case_id": case_id},
-            {"$set": agent_response_doc},
-            upsert=False  # Don't create if doesn't exist
-        )
-
-        log_message(task_id, f"Successfully updated records for case_id: {case_id}")
+        # Insert into AGENT_RESPONSES
+        try:
+            agent_response_doc = {
+                "artifi_id": artifi_id,
+                "tx_id": tx_id,
+                "case_id": case_id,
+                "agent_response": agent_response,
+                "history_sequence_id": history_sequence_id,
+                "transaction_type": "Updated",
+                "created_at": timestamp
+            }
+            db["AGENT_RESPONSES"].insert_one(agent_response_doc)
+        except Exception as e:
+            log_message(task_id, f"Error inserting into AGENT_RESPONSES: {str(e)}")
 
     except Exception as e:
-        log_message(task_id, f"Error in push_to_mongo_updated: {str(e)}")
+        log_message(task_id, f"Unexpected error: {str(e)}")
 
 def validate_auth_token(task):
     input_data = task.input_data
