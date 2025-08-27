@@ -1,6 +1,7 @@
 import requests
 from app.utils.conductor_logger import log_message
 from app.service.mongo_service import save_report_data, client, get_service_now_credentials
+import base64
 
 def send_to_service_now_rerun_worker(task):
     task_id    = task.task_id
@@ -115,6 +116,9 @@ def send_to_service_now_rerun_worker_ven(task):
     username = credentials["username"]
     password = credentials["password"]
 
+    auth_string = f"{username}:{password}"
+    auth_header = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
+
     # unpack
     case_id        = input_data.get("case_id")
     agent_output   = input_data.get("agent_output", {})           # dict keyed by agent name
@@ -136,7 +140,7 @@ def send_to_service_now_rerun_worker_ven(task):
 
     resp = requests.post(
         "https://ven07967.service-now.com/api/x_elete_clear_36_0/load_package/commons",
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json","Authorization": f"Basic {auth_header}"},
         json=payload
     )
 
@@ -169,7 +173,10 @@ def send_to_service_now_ven(task):
     username = credentials["username"]
     password = credentials["password"]
 
-    headers = {"Content-Type": "application/json"}
+    auth_string = f"{username}:{password}"
+    auth_header = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
+
+    headers = {"Content-Type": "application/json","Authorization": f"Basic {auth_header}"}
 
     url = "https://ven07967.service-now.com/api/x_elete_clear_36_0/load_package/commons"
     #url = "https://cert2054.service-now.com/api/x_elete_clear_36_0/load_package/commons"
