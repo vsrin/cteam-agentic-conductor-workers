@@ -280,13 +280,29 @@ def push_to_mongo_updated(task):
 
 def validate_auth_token(task):
     input_data = task.input_data
-    auth_token = input_data['auth_token']
-    expected_token = input_data['expected_token']  # Fetched from Atlas secrets
-    if auth_token == expected_token:
-        return {"status": "COMPLETED", "output": {"valid": True}}
-    else:
-        return {"status": "FAILED", "output": {"error": "Invalid token"}}
-
+    task_id = task.task_id
+    
+    try:
+        # Get auth token from workflow input
+        provided_token = input_data['auth_token']
+        
+        # FETCH THE CREDENTIALS FROM MONGODB 
+        from app.service.mongo_service import get_service_now_credentials
+        credentials = get_service_now_credentials()
+        expected_token = credentials['auth_token']
+        
+        log_message(task_id, f"Validating token against database")
+        
+        if provided_token == expected_token:
+            log_message(task_id, "Token validation successful")
+            return {"status": "COMPLETED", "outputData": {"valid": True}}
+        else:
+            log_message(task_id, "Token validation failed - Invalid token") 
+            return {"status": "FAILED", "outputData": {"valid": False, "error": "Invalid token"}}
+            
+    except Exception as e:
+        log_message(task_id, f"Token validation error: {str(e)}")
+        return {"status": "FAILED", "outputData": {"valid": False, "error": str(e)}}
 
 # Register Workers
 worker_send_to_service_now_ven = Worker(
