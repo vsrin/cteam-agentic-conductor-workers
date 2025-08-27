@@ -565,9 +565,7 @@ def call_ven_agent_service(task):
 
         elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
             # Only send Common within Submission Data
-            sub_data = {
-                "Common": submission.get("Common")
-            }
+            sub_data = f"case_id : {case_id}"
 
         else:
             # Default case, send the entire submission
@@ -699,9 +697,7 @@ def call_ven_agent_service_rerun(task):
 
         elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
             # Only send Common within Submission Data
-            sub_data = {
-                "Common": submission.get("Common")
-            }
+            sub_data = f"case_id : {case_id},modified_data : {modified_data}"
 
         else:
             # Default case, send the entire submission
