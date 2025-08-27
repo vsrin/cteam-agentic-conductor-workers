@@ -298,11 +298,11 @@ def validate_auth_token(task):
             return {"status": "COMPLETED", "outputData": {"valid": True}}
         else:
             log_message(task_id, "Token validation failed - Invalid token") 
-            return {"status": "FAILED", "outputData": {"valid": False, "error": "Invalid token"}}
+            raise Exception("Invalid authentication token - Access denied")
             
     except Exception as e:
         log_message(task_id, f"Token validation error: {str(e)}")
-        return {"status": "FAILED", "outputData": {"valid": False, "error": str(e)}}
+        raise e
 
 # Register Workers
 worker_send_to_service_now_ven = Worker(
