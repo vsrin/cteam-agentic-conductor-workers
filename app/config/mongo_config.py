@@ -5,3 +5,5 @@ DATABASE_NAME = "Submission_Intake"
 PROJECT_SERVICE_COLLECTION = "Project_Service"
 
 BP_COLLECTION = "BP_service"
+
+SERVICE_NOW_CREDENTIALS_COLLECTION = "service_now_credentials"
