@@ -1,7 +1,6 @@
 import requests
 from app.utils.conductor_logger import log_message
-from app.service.mongo_service import save_report_data, client
-
+from app.service.mongo_service import save_report_data, client, get_service_now_credentials
 
 def send_to_service_now_rerun_worker(task):
     task_id    = task.task_id
@@ -112,6 +111,10 @@ def send_to_service_now_rerun_worker_ven(task):
     input_data = task.input_data
     log_message(task_id, "Rerun: sending data to ServiceNow")
 
+    credentials = get_service_now_credentials()
+    username = credentials["username"]
+    password = credentials["password"]
+
     # unpack
     case_id        = input_data.get("case_id")
     agent_output   = input_data.get("agent_output", {})           # dict keyed by agent name
@@ -162,6 +165,10 @@ def send_to_service_now_ven(task):
     task_id = task.task_id
     log_message(task_id,f"Sending the data to service now")
 
+    credentials = get_service_now_credentials()
+    username = credentials["username"]
+    password = credentials["password"]
+
     headers = {"Content-Type": "application/json"}
 
     url = "https://ven07967.service-now.com/api/x_elete_clear_36_0/load_package/commons"
@@ -202,5 +209,3 @@ def send_to_service_now_ven(task):
     except Exception as e:
         log_message(task_id,f"Error sending data to ServiceNow: {e}")
         raise
-
-
