@@ -209,7 +209,7 @@ def call_agent_service_rerun(task):
 
     # 3) call agents
     results = {}
-    agents = client["Agent_Database"]["AgentCatalog"].find({
+    agents = client["ven_instance"]["ven_agents"].find({
         "AgentID": {"$in": list(TARGET_AGENT_IDS)}
     })
 
@@ -342,7 +342,7 @@ def call_agent_service(task):
 
     log_message(task_id, f"Calling agents for case_id: {case_id}")
 
-    agents = client["Agent_Database"]["AgentCatalog"].find({
+    agents = client["ven_instance"]["ven_agents"].find({
         "AgentID": {"$in": list(TARGET_AGENT_IDS)}
     })
 
@@ -501,7 +501,7 @@ def call_ven_agent_service(task):
 
     log_message(task_id, f"Calling agents for case_id: {case_id}")
 
-    agents = client["Agent_Database"]["AgentCatalog"].find({
+    agents = client["ven_instance"]["ven_agents"].find({
         "AgentID": {"$in": list(TARGET_AGENT_IDS)}
     })
 
@@ -565,7 +565,9 @@ def call_ven_agent_service(task):
 
         elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
             # Only send Common within Submission Data
-            sub_data = {"Common": submission.get("Common")}
+            sub_data = {
+                "Common": submission.get("Common")
+            }
 
         else:
             # Default case, send the entire submission
@@ -651,7 +653,7 @@ def call_ven_agent_service_rerun(task):
 
     # 3) call agents
     results = {}
-    agents = client["Agent_Database"]["AgentCatalog"].find({
+    agents = client["ven_instance"]["ven_agents"].find({
         "AgentID": {"$in": list(TARGET_AGENT_IDS)}
     })
 
@@ -697,7 +699,9 @@ def call_ven_agent_service_rerun(task):
 
         elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
             # Only send Common within Submission Data
-            sub_data = {"Common": submission.get("Common")}
+            sub_data = {
+                "Common": submission.get("Common")
+            }
 
         else:
             # Default case, send the entire submission
