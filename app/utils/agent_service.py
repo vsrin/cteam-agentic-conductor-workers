@@ -709,6 +709,8 @@ def call_ven_agent_service_rerun(task):
 
         full_message = f"{sub_data} {suffix}".strip()
 
+        print(f"full_message:{full_message}")
+
         try:
             log_message(task_id, f"Calling {name}")
             # Select endpoint based on agent_id, fallback to default if not found
