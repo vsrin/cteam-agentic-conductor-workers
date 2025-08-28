@@ -696,6 +696,7 @@ def call_ven_agent_service_rerun(task):
             # Only send submission data without LossRun
             sub_data = submission.copy()
             sub_data.pop("Loss Run", None)
+            print(f"eligibility_input:{sub_data}")
 
         elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
             # Only send Common within Submission Data
