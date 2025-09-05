@@ -139,7 +139,7 @@ def send_to_service_now_rerun_worker_ven(task):
     log_message(task_id, f"Payload to be sent: {payload}")
 
     resp = requests.post(
-        "https://cert2054.service-now.com/api/x_elete_clear_36_0/load_package/commons",
+        "https://cert362.service-now.com/api/x_elete_clear_36_0/load_package/commons",
         headers={"Content-Type": "application/json","Authorization": f"Basic {auth_header}"},
         json=payload
     )
@@ -178,7 +178,7 @@ def send_to_service_now_ven(task):
 
     headers = {"Content-Type": "application/json","Authorization": f"Basic {auth_header}"}
 
-    url = "https://cert2054.service-now.com/api/x_elete_clear_36_0/load_package/commons"
+    url = "https://cert362.service-now.com/api/x_elete_clear_36_0/load_package/commons"
     #url = "https://cert2054.service-now.com/api/x_elete_clear_36_0/load_package/commons"
 
     
