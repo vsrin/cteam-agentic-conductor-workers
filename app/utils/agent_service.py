@@ -29,7 +29,7 @@ from app.service.mongo_service import save_report_data, client
 
 #caseid
 TARGET_AGENT_IDS = {
-    "10645287-854e-4270-bb7d-fcbb31d3aefa",  # LossInsight (case id)
+    "0905813f-ec2a-440c-ae06-701d1dae1654",  # LossInsight (case id)
     "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220",  # ExposureInsight (case id)
     "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb",  # EligibilityCheck
     "62bdca88-828e-48a2-ac10-357264372043",  # InsuranceVerify (case id)
@@ -264,7 +264,7 @@ def call_agent_service_rerun(task):
             # Send common
             sub_data = f"case_id : {case_id},modified_data : {modified_data}"
 
-        elif agent_id == "10645287-854e-4270-bb7d-fcbb31d3aefa": # LossInsights
+        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
             # Only send Common + Loss Run
             sub_data = f"case_id : {case_id},modified_data : {modified_data}"
 
@@ -417,7 +417,7 @@ def call_agent_service(task):
             # Send common
             sub_data = f"case_id : {case_id}"
 
-        elif agent_id == "10645287-854e-4270-bb7d-fcbb31d3aefa": # LossInsights
+        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
             # Only send Common + Loss Run
             sub_data = f"case_id : {case_id}"
 
@@ -524,7 +524,7 @@ def call_ven_agent_service(task):
     # Mapping of AgentIDs to their specific endpoints
     agent_endpoints = {
         "62bdca88-828e-48a2-ac10-357264372043": "https://insuranceverify.enowclear360.com/query",  # DataAnalysis (InsuranceVerify)
-        "10645287-854e-4270-bb7d-fcbb31d3aefa": "https://lossinsights.enowclear360.com/query",  # LossInsights
+        "0905813f-ec2a-440c-ae06-701d1dae1654": "https://lossinsights.enowclear360.com/query",  # LossInsights
         "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "https://propeval.enowclear360.com/query",  # PropEval (Analytics 2)
         "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "https://exposureinsights.enowclear360.com/query",  # ExposureInsights
         "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "https://eligibility.enowclear360.com/query",  # Appetite and Eligibility
@@ -546,7 +546,7 @@ def call_ven_agent_service(task):
             # Send common
             sub_data = f"case_id : {case_id}"
 
-        elif agent_id == "10645287-854e-4270-bb7d-fcbb31d3aefa": # LossInsights
+        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
             # Only send Common + Loss Run
             sub_data = f"case_id : {case_id}"
 
@@ -660,7 +660,7 @@ def call_ven_agent_service_rerun(task):
     # Mapping of AgentIDs to their specific endpoints
     agent_endpoints = {
         "62bdca88-828e-48a2-ac10-357264372043": "https://insuranceverify.enowclear360.com/query",  # DataAnalysis (InsuranceVerify)
-        "10645287-854e-4270-bb7d-fcbb31d3aefa": "https://lossinsights.enowclear360.com/query",  # LossInsights
+        "0905813f-ec2a-440c-ae06-701d1dae1654": "https://lossinsights.enowclear360.com/query",  # LossInsights
         "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "https://propeval.enowclear360.com/query",  # PropEval (Analytics 2)
         "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "https://exposureinsights.enowclear360.com/query",  # ExposureInsights
         "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "https://eligibility.enowclear360.com/query",  # Appetite and Eligibility
@@ -680,7 +680,7 @@ def call_ven_agent_service_rerun(task):
             # Send common
             sub_data = f"case_id : {case_id},modified_data : {modified_data}"
 
-        elif agent_id == "10645287-854e-4270-bb7d-fcbb31d3aefa": # LossInsights
+        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
             # Only send Common + Loss Run
             sub_data = f"case_id : {case_id},modified_data : {modified_data}"
 
