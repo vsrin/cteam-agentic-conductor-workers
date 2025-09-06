@@ -7,47 +7,26 @@ import requests
 from app.utils.conductor_logger import log_message
 from app.service.mongo_service import save_report_data, client
 
-# TARGET_AGENT_IDS = {
-#     "a9b0250c-0e6c-45a2-9214-0441af43b36a",  # LossInsight
-#     "cb8d305d7cf54bbbbf0490787079dbcb",  # ExposureInsight
-#     "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb",  # EligibilityCheck
-#     #"6097c379-9637-4198-abad-a9d5416fb650",  # InsuranceVerify
-#     "62bdca88-828e-48a2-ac10-357264372043",  # InsuranceVerify (case id)
-#     "8c72ba1d-9403-4782-8f8c-12564ab73f9c",  # PropEval
-#     "383daaad-4b46-491b-b987-9dd17d430ca3"   # BusineesProfileSearch
-# }
-
-# AGENT_PROMPTS = {
-#     "LossInsight":       "Please provide loss insights for the data.",
-#     "ExposureInsight":   "Please provide exposure insights for the data.",
-#     "EligibilityCheck":  "Please check eligibility based on the data.",
-#     #"InsuranceVerify":   "Please verify insurance details in the data.",
-#     "InsuranceVerify_v3": "Please verify insurance details in the data.",
-#     "PropEval":          "Please provide Property evaluation insights for the data.",
-#     "BusineesProfileSearch": "Please search the business profile based on the data.",
-# }
-
-#caseid
-TARGET_AGENT_IDS = {
-    "0905813f-ec2a-440c-ae06-701d1dae1654",  # LossInsight (case id)
-    "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220",  # ExposureInsight (case id)
-    "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb",  # EligibilityCheck
-    "62bdca88-828e-48a2-ac10-357264372043",  # InsuranceVerify (case id)
-    "8c72ba1d-9403-4782-8f8c-12564ab73f9c",  # PropEval
-    "383daaad-4b46-491b-b987-9dd17d430ca3"   # BusineesProfileSearch
+# Updated to use AgentName instead of AgentID
+TARGET_AGENT_NAMES = {
+    "LossInsights",
+    "ExposureInsights", 
+    "EligibilityCheck",
+    "InsuranceVerify",
+    "PropEval",
+    "BusineesProfileSearch"  # Using your exact DB name with typo
 }
 
-#caseid
+# Updated AGENT_PROMPTS to match your exact AgentNames
 AGENT_PROMPTS = {
     "LossInsights":       "Please provide loss insights for the data.",
     "ExposureInsights":   "Please provide exposure insights for the data.",
     "EligibilityCheck":  "Please check eligibility based on the data.",
     "InsuranceVerify": "Please verify insurance details in the data.",
     "PropEval":          "Please provide Property evaluation insights for the data.",
-    "BusineesProfileSearch": "Please search the business profile based on the data.",
+    "BusineesProfileSearch": "Please search the business profile based on the data.",  # Using your exact DB name
 }
 
-#change the default score to 100
 def deep_update(original: dict, updates: dict) -> dict:
     """
     Recursively walk `original`. Whenever you encounter a key that's in `updates`:
@@ -76,30 +55,6 @@ def deep_update(original: dict, updates: dict) -> dict:
             deep_update(original[k], updates)  # Pass original updates, function will recreate the lookup
 
     return original
-
-# def deep_update(original: dict, updates: dict) -> dict:
-#     """
-#     Recursively walk `original`.  Whenever you encounter a key that's in `updates`:
-#       - if original[k] is a dict with a 'value' key, replace original[k]['value']
-#       - otherwise replace original[k] outright.
-#     Returns the mutated `original`.
-#     """
-#     for k, v in list(original.items()):
-#         # If this key needs updating, apply update logic
-#         if k in updates:
-#             new_val = updates[k]
-#             if isinstance(original[k], dict) and 'value' in original[k]:
-#                 original[k]['value'] = new_val
-#             else:
-#                 original[k] = new_val
-
-#         # If the value is itself a dict, recurse into it
-#         if isinstance(original[k], dict):
-#             deep_update(original[k], updates)
-
-#     return original
-
-import json
 
 def craft_agent_config(agent_data):
     cfg = agent_data.get("Configuration", {})
@@ -159,328 +114,6 @@ def craft_agent_config(agent_data):
 
     return agent_config
 
-def call_agent_service_rerun(task):
-    task_id       = task.task_id
-    input_data    = task.input_data or {}
-    log_message(task_id, "Rerun: pull + call agents")
-
-    # 1) pull from Mongo
-    case_id       = input_data.get("case_id")
-    modified_data = input_data.get("modified_data", {})
-    mongo_doc     = client["Submission_Intake"]["BP_DATA"].find_one({"case_id": case_id}) or {}
-    submission    = mongo_doc.get("submission_data", {})
-
-    # 2) merge
-    merged_data = deep_update(copy.deepcopy(submission), modified_data)
-    thread_id   = input_data.get("thread_id", random.randint(1,100000))
-
-    if thread_id is None or thread_id == "":
-        thread_id = random.randint(1, 100000)
-    else:
-        try:
-            thread_id = int(thread_id)  # Convert to int
-        except (ValueError, TypeError):
-            thread_id = random.randint(1, 100000)
-
-    # helper: safely convert markdown→HTML
-    def md2html(s: str) -> str:
-        return markdown.markdown(s, extensions=['extra'])
-
-    # process each top‑level field in an agent’s response
-    def convert_section(val):
-        # if the entire section is a plain string → convert it
-        if isinstance(val, str):
-            return md2html(val)
-
-        # if it’s a dict:
-        if isinstance(val, dict):
-            
-            if isinstance(val, dict) and "result" in val:
-                # convert resp["result"]
-                val["result"] = md2html(val["result"])
-            elif isinstance(val, str):
-                # convert the whole response string
-                val["response"] = md2html(val)
-            # leave metadata or other keys untouched
-            return val
-
-        # any other type → leave
-        return val
-
-    # 3) call agents
-    results = {}
-    agents = client["ven_instance"]["ven_agents"].find({
-        "AgentID": {"$in": list(TARGET_AGENT_IDS)}
-    })
-
-    for agent in agents:
-        name   = agent.get("AgentName", agent["AgentID"])
-        agent_id   = agent.get("AgentID")
-        config = craft_agent_config(agent)
-        suffix = AGENT_PROMPTS.get(name, "")
-
-        #old agents without case id getting ful bp data
-        # if agent_id == "6097c379-9637-4198-abad-a9d5416fb650": # DataAnalysis (InsuranceVerify) v1 full data
-        #     # Send common
-        #     sub_data = submission.get("Common", "") 
-
-        # elif agent_id == "a9b0250c-0e6c-45a2-9214-0441af43b36a": # LossInsights
-        #     # Only send Common + Loss Run
-        #     sub_data = {
-        #         "Common": submission.get("Common",""),
-        #         "Loss Run": submission.get("Loss Run","")
-        #     }
-
-        # elif agent_id == "8c72ba1d-9403-4782-8f8c-12564ab73f9c": # PropEval (Analytics 2)
-        #     # Only send Common + Property + Advanced Property
-        #     sub_data = {
-        #         "Common": submission.get("Common"),
-        #         "Advanced Property": submission.get("Advanced Property")
-        #     }
-
-        # elif agent_id == "cb8d305d7cf54bbbbf0490787079dbcb": # ExposureInsights
-        #     # Only send submission data without LossRun
-        #     sub_data = submission.copy()
-        #     sub_data.pop("Loss Run", None)
-
-        # elif agent_id == "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": # Appetite and Eligibility
-        #     # Only send submission data without LossRun
-        #     sub_data = submission.copy()
-        #     sub_data.pop("Loss Run", None)
-
-        # elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
-        #     # Only send Common within Submission Data
-        #     sub_data = {
-        #         "Common": submission.get("Common")
-        #     }
-
-        # else:
-        #     # Default case, send the entire submission
-        #     sub_data = submission
-        
-
-        #new agents with case id getting only required data
-        if agent_id == "62bdca88-828e-48a2-ac10-357264372043": # DataAnalysis (InsuranceVerify) case id
-            # Send common
-            sub_data = f"case_id : {case_id},modified_data : {modified_data}"
-
-        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
-            # Only send Common + Loss Run
-            sub_data = f"case_id : {case_id},modified_data : {modified_data}"
-
-        elif agent_id == "8c72ba1d-9403-4782-8f8c-12564ab73f9c": # PropEval (Analytics 2)
-            # Only send Common + Property + Advanced Property
-            sub_data = f"case_id : {case_id},modified_data : {modified_data}"       
-
-        elif agent_id == "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": # ExposureInsights
-            # Only send submission data without LossRun
-            sub_data = f"case_id : {case_id},modified_data : {modified_data}" 
-
-        elif agent_id == "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": # Appetite and Eligibility
-            # Only send submission data without LossRun
-            sub_data = submission.copy()
-            sub_data.pop("Loss Run", None)
-
-        elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
-            # Only send Common within Submission Data
-            sub_data = {
-                "Common": submission.get("Common")
-            }
-
-        else:
-            # Default case, send the entire submission
-            sub_data = submission
-
-        full_message = f"{sub_data} {suffix}".strip()
-
-        try:
-            log_message(task_id, f"Calling {name}")
-            # raw = requests.post(
-            #     "http://34.224.79.136:8000/query",
-            #     json={"agent_config": config, "message": full_message, "thread_id": thread_id},
-            #     timeout=300
-            # ).json()
-
-            raw = requests.post(
-                "http://54.80.147.224:9000/query",
-                json={"agent_config": config, "message": full_message, "thread_id": thread_id},
-                timeout=300
-            ).json()
-
-            # convert every top‑level value
-            for k, v in raw.items():
-                raw[k] = convert_section(v)
-
-            results[name] = raw
-
-        except Exception as e:
-            results[name] = {"error": str(e)}
-
-    return {
-        "status": "COMPLETED",
-        "outputData": {
-            "agent_output":    results,
-            "submission_data": merged_data
-        }
-    }
-
-def call_agent_service(task):
-    task_id    = task.task_id
-    input_data = task.input_data or {}
-    submission = input_data.get("submission_data", {})
-    thread_id  = input_data.get("thread_id", random.randint(1,100000))
-
-    if thread_id is None or thread_id == "":
-        thread_id = random.randint(1, 100000)
-    else:
-        try:
-            thread_id = int(thread_id)  # Convert to int
-        except (ValueError, TypeError):
-            thread_id = random.randint(1, 100000)
-
-    case_id = input_data.get("case_id", "")
-
-    log_message(task_id, f"Calling agents for case_id: {case_id}")
-
-    agents = client["ven_instance"]["ven_agents"].find({
-        "AgentID": {"$in": list(TARGET_AGENT_IDS)}
-    })
-
-    # helper: safely convert markdown→HTML
-    def md2html(s: str) -> str:
-        return markdown.markdown(s, extensions=['extra'])
-
-    # convert top-level sections like in the rerun function
-    def convert_section(val):
-        if isinstance(val, str):
-            return md2html(val)
-        if isinstance(val, dict):
-            if "result" in val:
-                val["result"] = md2html(val["result"])
-            elif isinstance(val, str):
-                val["response"] = md2html(val)
-            return val
-        return val
-
-    results = {}
-    for agent in agents:
-        agent_id   = agent.get("AgentID")
-        agent_name = agent.get("AgentName", agent["AgentID"])
-        agent_cfg  = craft_agent_config(agent)
-        suffix     = AGENT_PROMPTS.get(agent_name, "")
-        # if agent_id == "6097c379-9637-4198-abad-a9d5416fb650":# InsuranceVerify
-        #     sub_data = submission.get("Common", "")
-
-        # elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3":#LossInsight
-        #     sub_data= submission.get("Loss Run", "")
-
-        # if agent_id == "6097c379-9637-4198-abad-a9d5416fb650": # DataAnalysis (InsuranceVerify)
-        #     # Send common
-        #     sub_data = submission.get("Common", "") 
-
-        # elif agent_id == "a9b0250c-0e6c-45a2-9214-0441af43b36a": # LossInsights
-        #     # Only send Common + Loss Run
-        #     sub_data = {
-        #         "Common": submission.get("Common",""),
-        #         "Loss Run": submission.get("Loss Run","")
-        #     }
-
-        # elif agent_id == "8c72ba1d-9403-4782-8f8c-12564ab73f9c": # PropEval (Analytics 2)
-        #     # Only send Common + Property + Advanced Property
-        #     sub_data = {
-        #         "Common": submission.get("Common"),
-        #         "Advanced Property": submission.get("Advanced Property")
-        #     }
-
-        # elif agent_id == "cb8d305d7cf54bbbbf0490787079dbcb": # ExposureInsights
-        #     # Only send submission data without LossRun
-        #     sub_data = submission.copy()
-        #     sub_data.pop("Loss Run", None)
-
-        # elif agent_id == "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": # Appetite and Eligibility
-        #     # Only send submission data without LossRun
-        #     sub_data = submission.copy()
-        #     sub_data.pop("Loss Run", None)
-
-        # elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
-        #     # Only send Common within Submission Data
-        #     sub_data = {
-        #         "Common": submission.get("Common")
-        #     }
-
-        # else:
-        #     # Default case, send the entire submission
-        #     sub_data = submission
-
-        #new agents with case id getting only required data
-        if agent_id == "62bdca88-828e-48a2-ac10-357264372043": # DataAnalysis (InsuranceVerify) case id
-            # Send common
-            sub_data = f"case_id : {case_id}"
-
-        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
-            # Only send Common + Loss Run
-            sub_data = f"case_id : {case_id}"
-
-        elif agent_id == "8c72ba1d-9403-4782-8f8c-12564ab73f9c": # PropEval (Analytics 2)
-            # Only send Common + Property + Advanced Property
-            sub_data = f"case_id : {case_id}"       
-
-        elif agent_id == "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": # ExposureInsights
-            # Only send submission data without LossRun
-            sub_data = f"case_id : {case_id}" 
-
-        elif agent_id == "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": # Appetite and Eligibility
-            # Only send submission data without LossRun
-            sub_data = submission.copy()
-            sub_data.pop("Loss Run", None)
-
-        elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
-            # Only send Common within Submission Data
-            sub_data = {
-                "Common": submission.get("Common")
-            }
-
-        else:
-            # Default case, send the entire submission
-            sub_data = submission
-
-        full_message = f"{sub_data} {suffix}".strip()
-        log_message(task_id, f"sending to {agent_name!r}")
-
-        try:
-            # r = requests.post(
-            #     "http://34.224.79.136:8000/query",
-            #     json={
-            #         "agent_config": agent_cfg,
-            #         "message":      full_message,
-            #         "thread_id":    thread_id
-            #     },
-            #     timeout=300
-            # )
-            r = requests.post(
-                "http://54.80.147.224:9000/query",
-                json={
-                    "agent_config": agent_cfg,
-                    "message":      full_message,
-                    "thread_id":    thread_id
-                },
-                timeout=300
-            )
-            raw = r.json()
-
-            # apply markdown→HTML conversion to each top-level field
-            for k, v in raw.items():
-                raw[k] = convert_section(v)
-
-            results[agent_name] = raw
-
-        except Exception as e:
-            results[agent_name] = {"error": str(e)}
-
-    return results
-
-
-
 def call_ven_agent_service(task):
     task_id    = task.task_id
     input_data = task.input_data or {}
@@ -501,8 +134,9 @@ def call_ven_agent_service(task):
 
     log_message(task_id, f"Calling agents for case_id: {case_id}")
 
+    # CHANGED: Query by AgentName instead of AgentID
     agents = client["ven_instance"]["ven_agents"].find({
-        "AgentID": {"$in": list(TARGET_AGENT_IDS)}
+        "AgentName": {"$in": list(TARGET_AGENT_NAMES)}
     })
 
     # helper: safely convert markdown→HTML
@@ -521,14 +155,14 @@ def call_ven_agent_service(task):
             return val
         return val
 
-    # Mapping of AgentIDs to their specific endpoints
+    # CHANGED: Mapping of AgentNames to their specific endpoints
     agent_endpoints = {
-        "62bdca88-828e-48a2-ac10-357264372043": "https://insuranceverify.enowclear360.com/query",  # DataAnalysis (InsuranceVerify)
-        "0905813f-ec2a-440c-ae06-701d1dae1654": "https://lossinsights.enowclear360.com/query",  # LossInsights
-        "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "https://propeval.enowclear360.com/query",  # PropEval (Analytics 2)
-        "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "https://exposureinsights.enowclear360.com/query",  # ExposureInsights
-        "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "https://eligibility.enowclear360.com/query",  # Appetite and Eligibility
-        "383daaad-4b46-491b-b987-9dd17d430ca3": "https://businessprofile.enowclear360.com/query",  # Business Operations (Analytics 1)
+        "InsuranceVerify": "https://insuranceverify.enowclear360.com/query",
+        "LossInsights": "https://lossinsights.enowclear360.com/query",
+        "PropEval": "https://propeval.enowclear360.com/query",
+        "ExposureInsights": "https://exposureinsights.enowclear360.com/query",
+        "EligibilityCheck": "https://eligibility.enowclear360.com/query",
+        "BusineesProfileSearch": "https://businessprofile.enowclear360.com/query",  # Using your exact DB name
     }
 
     # Default endpoint for agents not specified in the mapping
@@ -537,33 +171,29 @@ def call_ven_agent_service(task):
     results = {}
     for agent in agents:
         agent_id   = agent.get("AgentID")
-        agent_name = agent.get("AgentName", agent["AgentID"])
+        agent_name = agent.get("AgentName", agent["AgentID"])  # Get AgentName
         agent_cfg  = craft_agent_config(agent)
         suffix     = AGENT_PROMPTS.get(agent_name, "")
 
-        #new agents with case id getting only required data
-        if agent_id == "62bdca88-828e-48a2-ac10-357264372043": # DataAnalysis (InsuranceVerify) case id
-            # Send common
+        # CHANGED: Check by agent_name instead of agent_id
+        if agent_name == "InsuranceVerify":
             sub_data = f"case_id : {case_id}"
 
-        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
-            # Only send Common + Loss Run
+        elif agent_name == "LossInsights":
             sub_data = f"case_id : {case_id}"
 
-        elif agent_id == "8c72ba1d-9403-4782-8f8c-12564ab73f9c": # PropEval (Analytics 2)
-            # Only send Common + Property + Advanced Property
+        elif agent_name == "PropEval":
             sub_data = f"case_id : {case_id}"       
 
-        elif agent_id == "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": # ExposureInsights
-            # Only send submission data without LossRun
+        elif agent_name == "ExposureInsights":
             sub_data = f"case_id : {case_id}" 
 
-        elif agent_id == "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": # Appetite and Eligibility
+        elif agent_name == "EligibilityCheck":
             # Only send submission data without LossRun
             sub_data = submission.copy()
             sub_data.pop("Loss Run", None)
 
-        elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
+        elif agent_name == "BusineesProfileSearch":  # Using your exact DB name
             # Only send Common within Submission Data
             sub_data = {
                 "Common": submission.get("Common")
@@ -577,12 +207,12 @@ def call_ven_agent_service(task):
         log_message(task_id, f"sending to {agent_name!r}")
 
         try:
-            # Select endpoint based on agent_id, fallback to default if not found
-            endpoint = agent_endpoints.get(agent_id, default_endpoint)
+            # CHANGED: Select endpoint based on agent_name, fallback to default if not found
+            endpoint = agent_endpoints.get(agent_name, default_endpoint)
             r = requests.post(
                 endpoint,
                 json={
-                    # "agent_config": agent_cfg,
+                    # "agent_config": agent_cfg,  # Commented out as per original
                     "message":      full_message,
                     "thread_id":    thread_id
                 },
@@ -600,8 +230,6 @@ def call_ven_agent_service(task):
             results[agent_name] = {"error": str(e)}
 
     return results
-
-
 
 def call_ven_agent_service_rerun(task):
     task_id       = task.task_id
@@ -630,13 +258,13 @@ def call_ven_agent_service_rerun(task):
     def md2html(s: str) -> str:
         return markdown.markdown(s, extensions=['extra'])
 
-    # process each top‑level field in an agent’s response
+    # process each top‑level field in an agent's response
     def convert_section(val):
         # if the entire section is a plain string → convert it
         if isinstance(val, str):
             return md2html(val)
 
-        # if it’s a dict:
+        # if it's a dict:
         if isinstance(val, dict):
             
             if isinstance(val, dict) and "result" in val:
@@ -653,52 +281,50 @@ def call_ven_agent_service_rerun(task):
 
     # 3) call agents
     results = {}
+    
+    # CHANGED: Query by AgentName instead of AgentID
     agents = client["ven_instance"]["ven_agents"].find({
-        "AgentID": {"$in": list(TARGET_AGENT_IDS)}
+        "AgentName": {"$in": list(TARGET_AGENT_NAMES)}
     })
 
-    # Mapping of AgentIDs to their specific endpoints
+    # CHANGED: Mapping of AgentNames to their specific endpoints
     agent_endpoints = {
-        "62bdca88-828e-48a2-ac10-357264372043": "https://insuranceverify.enowclear360.com/query",  # DataAnalysis (InsuranceVerify)
-        "0905813f-ec2a-440c-ae06-701d1dae1654": "https://lossinsights.enowclear360.com/query",  # LossInsights
-        "8c72ba1d-9403-4782-8f8c-12564ab73f9c": "https://propeval.enowclear360.com/query",  # PropEval (Analytics 2)
-        "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": "https://exposureinsights.enowclear360.com/query",  # ExposureInsights
-        "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": "https://eligibility.enowclear360.com/query",  # Appetite and Eligibility
-        "383daaad-4b46-491b-b987-9dd17d430ca3": "https://businessprofile.enowclear360.com/query",  # Business Operations (Analytics 1)
+        "InsuranceVerify": "https://insuranceverify.enowclear360.com/query",
+        "LossInsights": "https://lossinsights.enowclear360.com/query",
+        "PropEval": "https://propeval.enowclear360.com/query",
+        "ExposureInsights": "https://exposureinsights.enowclear360.com/query",
+        "EligibilityCheck": "https://eligibility.enowclear360.com/query",
+        "BusineesProfileSearch": "https://businessprofile.enowclear360.com/query",  # Using your exact DB name
     }
     # Default endpoint for agents not specified in the mapping
     default_endpoint = "http://54.80.147.224:9000/query"
 
     for agent in agents:
-        name   = agent.get("AgentName", agent["AgentID"])
+        name   = agent.get("AgentName", agent["AgentID"])  # Get AgentName
         agent_id   = agent.get("AgentID")
         config = craft_agent_config(agent)
         suffix = AGENT_PROMPTS.get(name, "")
 
-        #new agents with case id getting only required data
-        if agent_id == "62bdca88-828e-48a2-ac10-357264372043": # DataAnalysis (InsuranceVerify) case id
-            # Send common
+        # CHANGED: Check by agent name instead of agent_id
+        if name == "InsuranceVerify":
             sub_data = f"case_id : {case_id},modified_data : {modified_data}"
 
-        elif agent_id == "0905813f-ec2a-440c-ae06-701d1dae1654": # LossInsights
-            # Only send Common + Loss Run
+        elif name == "LossInsights":
             sub_data = f"case_id : {case_id},modified_data : {modified_data}"
 
-        elif agent_id == "8c72ba1d-9403-4782-8f8c-12564ab73f9c": # PropEval (Analytics 2)
-            # Only send Common + Property + Advanced Property
+        elif name == "PropEval":
             sub_data = f"case_id : {case_id},modified_data : {modified_data}"       
 
-        elif agent_id == "5cbb17d3-5fe5-4b59-9d4b-b33d471e4220": # ExposureInsights
-            # Only send submission data without LossRun
+        elif name == "ExposureInsights":
             sub_data = f"case_id : {case_id},modified_data : {modified_data}" 
 
-        elif agent_id == "48e0fde3-2c69-44f0-98d6-b6a5b031c2bb": # Appetite and Eligibility
+        elif name == "EligibilityCheck":
             # Only send submission data without LossRun
             sub_data = submission.copy()
             sub_data.pop("Loss Run", None)
             print(f"eligibility_input:{sub_data}")
 
-        elif agent_id == "383daaad-4b46-491b-b987-9dd17d430ca3": # Business Operations (Analytics 1)
+        elif name == "BusineesProfileSearch":  # Using your exact DB name
             # Only send Common within Submission Data
             sub_data = {
                 "Common": submission.get("Common")
@@ -714,8 +340,8 @@ def call_ven_agent_service_rerun(task):
 
         try:
             log_message(task_id, f"Calling {name}")
-            # Select endpoint based on agent_id, fallback to default if not found
-            endpoint = agent_endpoints.get(agent_id, default_endpoint)
+            # CHANGED: Select endpoint based on agent name, fallback to default if not found
+            endpoint = agent_endpoints.get(name, default_endpoint)
             raw = requests.post(
                 endpoint,
                 json={"message": full_message, "thread_id": thread_id},
